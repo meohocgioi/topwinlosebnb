@@ -1,0 +1,6 @@
+config.json
+config.json.tmp
+*.bak
+__pycache__/
+update_pending
+topwinlose_new.py
