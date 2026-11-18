@@ -3,10 +3,12 @@
 TopWinLose BNB — Bot Telegram: Top 15 Winner / Loser 24h cua Binance Futures (USDⓈ-M, tab Crypto).
 Chay: bam dup TopWinLose.bat (Windows). Giao dien cai dat: http://127.0.0.1:8788
 """
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 # Change log: ban moi nhat o tren cung. Bot gui phan nay sau moi lan /update.
 CHANGELOG = [
+    ("1.0.1", ["Bảng gọn cho vừa màn hình điện thoại, không phải kéo ngang: cột Coin/Vol · Price · 24h % · Fund %",
+               "Bỏ dấu % trong từng ô (đã ghi ở tiêu đề cột); Funding còn 3 số lẻ (vd 0.005, -0.127)"]),
     ("1.0.0", ["Bản đầu tiên: /start, /top, /win, /lose — Top 15 Winner / Loser 24h của Binance Futures USDⓈ-M (tab Crypto)",
                "Bảng tự cập nhật trong cùng 1 tin (mặc định 10s/lần), nút chuyển Winner / Loser / Cả 2 ngay dưới tin",
                "Chỉ chủ bot dùng được các lệnh; người khác chỉ dùng /start (xem bảng, không tự cập nhật)",
@@ -265,7 +267,7 @@ async def refresh_market(force=False):
 # Trinh bay
 # ----------------------------------------------------------------------------
 VIEWS = {"both": "📊 Cả 2", "win": "🟢 Winner", "lose": "🔴 Loser"}
-HEAD = ["Symbol / Vol", "Last Price", "24h Chg", "Funding"]
+HEAD = ["Coin/Vol", "Price", "24h %", "Fund %"]
 ALIGN = [None, "right", "right", "right"]
 
 
@@ -284,11 +286,11 @@ def fmt_price(p):
 
 
 def fmt_chg(c):
-    return f"{c:+.2f}%"
+    return f"{c:+.2f}"
 
 
 def fmt_fund(f):
-    return f"{f * 100:.4f}%"
+    return f"{f * 100:.3f}"
 
 
 def stamp():
@@ -333,8 +335,8 @@ def board_text(view="both", note=None):
         if rows and view in (key, "both"):
             L.append(title)
             for i, r in enumerate(pick(rows), 1):
-                L.append(f"{i:>2}. {r['coin']:<10} {fmt_price(r['price']):>10}  {'🟢' if r['chg'] >= 0 else '🔴'}{fmt_chg(r['chg']):>8}"
-                         f"  F {fmt_fund(r['fund'])}  V {fmt_vol(r['vol'])}")
+                L.append(f"{i:>2}. {r['coin']:<10} {fmt_price(r['price']):>10}  {'🟢' if r['chg'] >= 0 else '🔴'}{fmt_chg(r['chg']):>8}%"
+                         f"  F {fmt_fund(r['fund'])}%  V {fmt_vol(r['vol'])}")
             L.append("")
     L.append(stamp())
     return "\n".join(L)
@@ -829,8 +831,8 @@ def selftest():
     assert len(rows) == 40 and winners(rows)[0]["coin"] == "C39" and losers(rows)[0]["coin"] == "C0"
     assert len(winners(rows)) == TOP_N == len(losers(rows))
     assert fmt_vol(729.84e6) == "729.84M" and fmt_vol(1.5e9) == "1.50B" and fmt_price("0.0010670") == "0.001067"
-    assert fmt_chg(92.484) == "+92.48%" and fmt_chg(-15.674) == "-15.67%" and fmt_fund(0.00005) == "0.0050%"
-    assert fmt_fund(-0.0111233) == "-1.1123%"
+    assert fmt_chg(92.484) == "+92.48" and fmt_chg(-15.674) == "-15.67" and fmt_fund(0.00005) == "0.005"
+    assert fmt_fund(-0.0111233) == "-1.112"
     market.update(rows=rows, t=time.time())
     for v in VIEWS:
         json.dumps([board_blocks(v), board_kb(v), board_blocks(v, "x")], ensure_ascii=False)
