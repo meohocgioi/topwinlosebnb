@@ -29,7 +29,7 @@ Chỉ cần **một file**: `TopWinLose.bat`. Tải về, để ở Desktop, b�
 ## 4. Dữ liệu
 - Nguồn: Binance Futures API công khai (`/fapi/v1/ticker/24hr`, `/fapi/v1/premiumIndex`, `/fapi/v1/exchangeInfo`), không cần API key.
 - Tab **Crypto** = hợp đồng PERPETUAL ký quỹ USDT đang giao dịch, **không** gồm TradFi (cổ phiếu, vàng…), USDC và hợp đồng quý.
-- Cột: Symbol / Vol (khối lượng 24h bằng USDT), Last Price, 24h Chg, Funding Rate.
+- Cột: Coin/Vol (khối lượng 24h bằng USDT), Price, 24h % (thay đổi giá 24h), Fund % (funding rate).
 
 ## 5. Cập nhật
 Gõ `/update` cho bot (hoặc bấm **Update New Ver** trên trang tool). Tool tải bản mới từ repo này, chạy thử, thay file, khởi động lại rồi bot gửi change log. Bản mới lỗi khi khởi động thì tool tự quay về bản cũ. Tool **không** tự cập nhật khi bạn chưa ra lệnh.
