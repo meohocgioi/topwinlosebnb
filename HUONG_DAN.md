@@ -22,6 +22,7 @@ Chỉ cần **một file**: `TopWinLose.bat`. Tải về, để ở Desktop, b�
 | `/update` | Cập nhật bot lên bản mới nhất, gửi change log |
 | `/help` | Danh sách lệnh |
 
+- **Snapshot mỗi giờ:** sau khi gõ `/start` (hoặc `/top`, `/win`, `/lose`), cứ đúng mỗi đầu giờ (20:00, 21:00, … 07:00) bảng đang chạy được chốt lại, tiêu đề đổi thành `📸 Snap Shot at 20:00 · 18/11/2026`, và **giữ nguyên trong chat** để xem lại. Ngay bên dưới bot gửi bảng real time mới (tiêu đề `⚡ Real time update (fetch every 10s)`), nên bảng real time luôn nằm dưới cùng. Gõ lệnh lại chỉ xoá bảng real time cũ, không bao giờ xoá snapshot. Tool phải đang chạy vào đầu giờ thì mới chụp được (bật lại trong 5 phút đầu giờ vẫn chụp bù).
 - Bảng tự sửa số liệu ngay trong tin; dưới tin có nút **🟢 Winner / 🔴 Loser / 📊 Cả 2** để đổi bảng.
 - Gõ lệnh mới thì bảng cũ và lệnh cũ tự bị xoá, chat luôn gọn.
 - **Người không phải chủ bot** chỉ dùng được `/start`: nhận 1 bảng chụp nhanh (không tự cập nhật, không có nút). Lệnh khác bị từ chối. Menu lệnh của họ cũng chỉ hiện `/start`.

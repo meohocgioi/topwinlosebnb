@@ -3,10 +3,13 @@
 TopWinLose BNB — Bot Telegram: Top 15 Winner / Loser 24h cua Binance Futures (USDⓈ-M, tab Crypto).
 Chay: bam dup TopWinLose.bat (Windows). Giao dien cai dat: http://127.0.0.1:8788
 """
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 
 # Change log: ban moi nhat o tren cung. Bot gui phan nay sau moi lan /update.
 CHANGELOG = [
+    ("1.1.0", ["Snapshot mỗi giờ: đúng mỗi đầu giờ (20:00, 21:00…) bảng đang chạy được chốt lại thành bảng 📸 Snap Shot at HH:00 và giữ nguyên trong chat để xem lại",
+               "Ngay dưới đó bot gửi bảng ⚡ Real time update mới (fetch every 10s) — bảng real time luôn nằm dưới cùng",
+               "Gõ /start, /top, /win, /lose lại chỉ xoá bảng real time cũ, không bao giờ xoá các bảng snapshot"]),
     ("1.0.1", ["Bảng gọn cho vừa màn hình điện thoại, không phải kéo ngang: cột Coin/Vol · Price · 24h % · Fund %",
                "Bỏ dấu % trong từng ô (đã ghi ở tiêu đề cột); Funding còn 3 số lẻ (vd 0.005, -0.127)"]),
     ("1.0.0", ["Bản đầu tiên: /start, /top, /win, /lose — Top 15 Winner / Loser 24h của Binance Futures USDⓈ-M (tab Crypto)",
@@ -55,6 +58,7 @@ botst = {"ok": False, "err": "", "last": 0, "name": "", "token": "", "cmds_for":
 market = {"t": 0.0, "rows": [], "err": "", "err_t": 0.0, "syms": set(), "syms_t": 0.0, "backoff": 0.0}
 live = {"chat": None, "mid": None, "rich": True, "view": "both", "t": 0.0, "wait": 0.0, "every": 0, "every_until": 0}
 guests = {}                     # chat -> lan /start gan nhat
+edit_lock = None                # asyncio.Lock: khong sua bang real time trong luc dang chup snapshot
 PENDING = os.path.join(BASE_DIR, "update_pending")
 
 
@@ -308,7 +312,21 @@ def table_rows(rows):
              [chip(fmt_chg(r["chg"]), r["chg"] >= 0)], fmt_fund(r["fund"])] for r in rows]
 
 
-def board_blocks(view="both", note=None):
+def snap_label(ts):
+    d = datetime.fromtimestamp(ts)
+    return f"📸 Snap Shot at {d.strftime('%H:%M')} · {d.strftime('%d/%m/%Y')}"
+
+
+def sub_label(snap=None):
+    return snap_label(snap) if snap else f"⚡ Real time update (fetch every {refresh_s()}s)"
+
+
+def snap_stamp():
+    t = f" · dữ liệu lúc {datetime.fromtimestamp(market['t']).strftime('%H:%M:%S')}" if market["t"] else ""
+    return "Binance USDⓈ-M · Crypto" + t
+
+
+def board_blocks(view="both", note=None, snap=None):
     rows = market["rows"]
     blocks = []
     if note:
@@ -320,12 +338,13 @@ def board_blocks(view="both", note=None):
                              ("lose", f"🔴 Top {TOP_N} Loser · 24h", losers)):
         if rows and view in (key, "both"):
             blocks.append(r_head(title))
+            blocks.append(r_par(B(sub_label(snap))))
             blocks.append(r_table(HEAD, table_rows(pick(rows)), ALIGN))
-    blocks.append(r_foot(stamp()))
+    blocks.append(r_foot(snap_stamp() if snap else stamp()))
     return blocks
 
 
-def board_text(view="both", note=None):
+def board_text(view="both", note=None, snap=None):
     rows = market["rows"]
     L = [note] if note else []
     if not rows:
@@ -334,11 +353,12 @@ def board_text(view="both", note=None):
                              ("lose", f"🔴 Top {TOP_N} Loser · 24h", losers)):
         if rows and view in (key, "both"):
             L.append(title)
+            L.append(sub_label(snap))
             for i, r in enumerate(pick(rows), 1):
                 L.append(f"{i:>2}. {r['coin']:<10} {fmt_price(r['price']):>10}  {'🟢' if r['chg'] >= 0 else '🔴'}{fmt_chg(r['chg']):>8}%"
                          f"  F {fmt_fund(r['fund'])}%  V {fmt_vol(r['vol'])}")
             L.append("")
-    L.append(stamp())
+    L.append(snap_stamp() if snap else stamp())
     return "\n".join(L)
 
 
@@ -348,7 +368,7 @@ def board_kb(view):
 
 
 HELP_ITEMS = [
-    ("/start", "Bảng Top 15 Winner + Loser 24h (tự cập nhật)"),
+    ("/start", "Bảng Top 15 Winner + Loser 24h real time; mỗi đầu giờ tự chụp 1 bảng snapshot giữ lại trong chat"),
     ("/top", "Giống /start"),
     ("/win", "Chỉ Top 15 Winner"),
     ("/lose", "Chỉ Top 15 Loser"),
@@ -487,6 +507,11 @@ async def set_commands():
 
 # --- Bang tu cap nhat ---
 async def start_live(chat, view, user_mid=None):
+    async with edit_lock:
+        await _start_live(chat, view, user_mid)
+
+
+async def _start_live(chat, view, user_mid=None):
     old = (live["chat"], live["mid"])
     await refresh_market(force=time.time() - market["t"] > 3)
     live.update(chat=None, mid=None)
@@ -494,6 +519,7 @@ async def start_live(chat, view, user_mid=None):
     if mid:
         live.update(chat=chat, mid=mid, rich=rich, view=view, t=time.time(), wait=0.0)
         cfg["live_msg"] = [chat, mid, rich, view]
+        cfg["snap_last"] = datetime.now().strftime("%Y%m%d%H")      # snapshot dau tien: dau gio tiep theo
         save_cfg()
         track_new("board", chat, mid, user_mid, also_old=[old[1]] if str(old[0]) == str(chat) else [])
     elif old[1]:
@@ -531,7 +557,10 @@ async def live_loop():
             if now < live["wait"] or now - live["t"] < every:
                 continue
             await refresh_market()
-            r = await live_edit()
+            async with edit_lock:
+                if not live["mid"]:
+                    continue
+                r = await live_edit()
             desc = str(r.get("description") or "")
             if r.get("ok") or "not modified" in desc:
                 live["t"] = time.time()
@@ -550,6 +579,64 @@ async def live_loop():
                 save_cfg()
         except Exception as e:
             log(f"live: {type(e).__name__}: {e}")
+
+
+SNAP_WINDOW = 5 * 60          # tool vua bat lai trong 5 phut dau gio van chup bu
+
+
+async def take_snapshot(key):
+    """Chot bang real time hien tai thanh bang snapshot (giu lai, khong xoa) roi gui bang real time moi ben duoi."""
+    chat, mid, rich, view = live["chat"], live["mid"], live["rich"], live["view"]
+    await refresh_market(force=True)
+    ts = time.time()
+    if not market["rows"]:
+        return False
+    p = {"chat_id": chat, "message_id": mid, "reply_markup": {"inline_keyboard": []}}
+    r = {}
+    if rich:
+        for _ in range(3):
+            p["rich_message"] = {"blocks": board_blocks(view, snap=ts)}
+            r = await bot_api("editMessageText", _quiet=True, **p)
+            if r.get("ok") or not _fallback(str(r.get("description") or "")):
+                break
+    else:
+        p["text"] = board_text(view, snap=ts)[:4000]
+        r = await bot_api("editMessageText", _quiet=True, **p)
+    desc = str(r.get("description") or "")
+    if not (r.get("ok") or "not modified" in desc):
+        if _net_err(desc) or "Too Many Requests" in desc:
+            return False                   # thu lai sau
+        await _send_rich(chat, board_text(view, snap=ts), lambda: board_blocks(view, snap=ts))   # tin cu mat -> gui snapshot moi
+    mid2, rich2 = await _send_rich(chat, board_text(view), lambda: board_blocks(view), board_kb(view))
+    if mid2:
+        live.update(mid=mid2, rich=rich2, t=time.time(), wait=0.0)
+        cfg["live_msg"] = [chat, mid2, rich2, view]
+    else:
+        live.update(chat=None, mid=None)
+        cfg["live_msg"] = None
+    cfg["snap_last"] = key
+    cfg.setdefault("msg_track", {})["board"] = {"chat": str(chat), "mids": [int(mid2)] if mid2 else []}   # snapshot khong bi xoa
+    save_cfg()
+    log(f"📸 Snapshot {datetime.fromtimestamp(ts).strftime('%H:%M %d/%m')} — bảng real time mới ở dưới")
+    return True
+
+
+async def snap_loop():
+    while True:
+        await asyncio.sleep(2)
+        try:
+            if not live["mid"] or not cfg["bot_token"]:
+                continue
+            now = datetime.now()
+            key = now.strftime("%Y%m%d%H")
+            if cfg.get("snap_last") == key or now.minute * 60 + now.second >= SNAP_WINDOW:
+                continue
+            async with edit_lock:
+                if live["mid"]:
+                    await take_snapshot(key)
+        except Exception as e:
+            log(f"snapshot: {type(e).__name__}: {e}")
+            await asyncio.sleep(10)
 
 
 async def guest_start(chat, m):
@@ -585,7 +672,8 @@ async def handle_callback(cq):
             live["view"] = view
             cfg["live_msg"] = [live["chat"], live["mid"], live["rich"], view]
             save_cfg()
-            r = await live_edit()
+            async with edit_lock:
+                r = await live_edit()
             if r.get("ok"):
                 live["t"] = time.time()
         else:
@@ -837,6 +925,9 @@ def selftest():
     for v in VIEWS:
         json.dumps([board_blocks(v), board_kb(v), board_blocks(v, "x")], ensure_ascii=False)
         assert "Top" in board_text(v)
+    for v in VIEWS:
+        assert "Snap Shot at" in json.dumps(board_blocks(v, snap=time.time()), ensure_ascii=False)
+        assert "Real time update" in board_text(v) and "Snap Shot at" in board_text(v, snap=time.time())
     json.dumps([help_blocks(), changelog_msg("x", changelog_since("0.0.1")), setting_view()], ensure_ascii=False)
     assert CHANGELOG[0][0] == VERSION, "CHANGELOG thieu ban hien tai"
     assert "__VERSION__" in HTML
@@ -888,8 +979,9 @@ async def guard(req, handler):
 
 
 async def main():
-    global http, tg_http
+    global http, tg_http, edit_lock
     load_cfg()
+    edit_lock = asyncio.Lock()
     http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
     tg_http = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=20, keepalive_timeout=90))
     app = web.Application(middlewares=[guard])
@@ -909,6 +1001,7 @@ async def main():
         log(f"Đã lấy dữ liệu {len(market['rows'])} hợp đồng Crypto USDT perp")
     asyncio.create_task(bot_loop())
     asyncio.create_task(live_loop())
+    asyncio.create_task(snap_loop())
     asyncio.create_task(send_update_note())
     asyncio.create_task(clear_pending_later())
     await asyncio.Event().wait()
